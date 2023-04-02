@@ -46,9 +46,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build
-          command: go build -o myapp
-      - run:
           name: Build and tag Docker image
           command: |
             if [[ "$CIRCLE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
