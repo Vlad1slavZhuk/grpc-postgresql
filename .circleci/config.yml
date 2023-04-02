@@ -16,7 +16,7 @@ jobs:
             gotestsum --junitfile unit-tests.xml || (gotestsum --junitfile unit-tests.xml && exit 1)
           when: always
       - store_artifacts:
-          path: test_results.json
+          path: unit-tests.xml
           destination: gotestsum
   
   test-golangci-lint:
