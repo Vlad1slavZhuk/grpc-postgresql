@@ -12,7 +12,7 @@ jobs:
       - run:
           name: Test with gotestsum
           command: |
-            go get gotest.tools/gotestsum
+            go install gotest.tools/gotestsum@latest
             gotestsum --format json || (gotestsum --format json > test_results.json && exit 1)
           when: always
       - store_artifacts:
@@ -30,7 +30,7 @@ jobs:
       - run:
           name: Lint with golangci-lint
           command: |
-            go get github.com/golangci/golangci-lint/cmd/golangci-lint
+            go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
             golangci-lint run --out-format=json > golangci-lint-results.json || true
           when: always
       - store_artifacts:
