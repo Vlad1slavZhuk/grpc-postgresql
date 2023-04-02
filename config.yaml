@@ -1,0 +1,10 @@
+grpc:
+  host: localhost
+  port: 443
+postgresql:
+  host: localhost
+  port: 5432
+  username: postgres
+  password: password
+  database: shop
+auth_enabled: true

@@ -1,26 +1,90 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
+  test-gotestsum:
     docker:
-      - image: cimg/base:stable
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
+      - image: golang:latest
+    working_directory: ~/project
+    environment:
+      GO111MODULE: "on"
     steps:
       - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: Test with gotestsum
+          command: |
+            go install gotest.tools/gotestsum@latest
+            gotestsum --junitfile unit-tests.xml || (gotestsum --junitfile unit-tests.xml && exit 1)
+          when: always
+      - store_artifacts:
+          path: test_results.json
+          destination: gotestsum
+  
+  test-golangci-lint:
+    docker:
+      - image: golang:latest
+    working_directory: ~/project
+    environment:
+      GO111MODULE: "on"
+    steps:
+      - checkout
+      - run:
+          name: Lint with golangci-lint
+          command: |
+            go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+            golangci-lint run --out-format=json > golangci-lint-results.json || true
+          when: always
+      - store_artifacts:
+          path: golangci-lint-results.json
+          destination: golangci-lint
+         
+  build:
+    docker:
+      - image: golang:latest
+    working_directory: ~/project
+    environment:
+      GO111MODULE: "on"
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: go build -o myapp
+      - run:
+          name: Build and tag Docker image
+          command: |
+            if [[ "$CIRCLE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              docker build -t grpc-postgresql:$CIRCLE_SHA1 -f /build/Dockerfile .
+            else
+              echo "Skipping Docker image build and tag because this is not a semver tag or a merge to main/master."
+            fi
+                        
+  deploy:
+    docker:
+      - image: grpc-postgresql:$CIRCLE_SHA1
+    steps:
+      - run:
+          name: Push Docker image to Docker Hub
+          command: |
+            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            docker push grpc-postgresql:$CIRCLE_SHA1
 
-# Invoke jobs via workflows
-# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
+
 workflows:
-  say-hello-workflow:
+  build-and-deploy:
     jobs:
-      - say-hello
+      - test-gotestsum
+      - test-golangci-lint:
+          requires:
+            - test-gotestsum
+      - build:
+          requires:
+            - test-gotestsum
+            - test-golangci-lint
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+/
+      - deploy:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+/
