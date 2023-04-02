@@ -54,9 +54,9 @@ jobs:
 workflows:
   grpc-postgresql-workflow:
     jobs:
-      - test:
+      - tests:
           name: Lint with golangci-lint
-      - test:
+      - tests:
           name: Test with gotestsum
       - build:
           requires:
