@@ -1,12 +1,13 @@
 version: 2.1
 
 jobs:
-  tests:
+  test-gotestsum:
     docker:
       - image: golang:latest
+    working_directory: ~/project
     environment:
       GO111MODULE: "on"
-    steps: 
+    steps:
       - checkout
       - run:
           name: Test with gotestsum
@@ -14,6 +15,18 @@ jobs:
             go get gotest.tools/gotestsum
             gotestsum --format json || (gotestsum --format json > test_results.json && exit 1)
           when: always
+      - store_artifacts:
+          path: test_results.json
+          destination: gotestsum
+  
+  test-golangci-lint:
+    docker:
+      - image: golang:latest
+    working_directory: ~/project
+    environment:
+      GO111MODULE: "on"
+    steps:
+      - checkout
       - run:
           name: Lint with golangci-lint
           command: |
@@ -21,18 +34,22 @@ jobs:
             golangci-lint run --out-format=json > golangci-lint-results.json || true
           when: always
       - store_artifacts:
-          path: |
-            ./test_results.json
-            ./golangci-lint-results.json
-          destination: test_results
+          path: golangci-lint-results.json
+          destination: golangci-lint
          
   build:
     docker:
-      - image: docker:latest
+      - image: golang:latest
+    working_directory: ~/project
+    environment:
+      GO111MODULE: "on"
     steps:
       - checkout
       - run:
-          name: Build Docker image  
+          name: Build
+          command: go build -o myapp
+      - run:
+          name: Build and tag Docker image
           command: |
             if [[ "$CIRCLE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
               docker build -t grpc-postgresql:$CIRCLE_SHA1 -f /build/Dockerfile .
@@ -54,19 +71,20 @@ jobs:
 workflows:
   build-and-deploy:
     jobs:
-      - tests:
-          name: Lint with golangci-lint  
-      - tests:
-          name: Test with gotestsum
+      - test-gotestsum
+      - test-golangci-lint:
+          requires:
+            - test-gotestsum
       - build:
           requires:
-            - "tests"
+            - test-gotestsum
+            - test-golangci-lint
           filters:
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+/
       - deploy:
           requires:
             - build
           filters:
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+/
