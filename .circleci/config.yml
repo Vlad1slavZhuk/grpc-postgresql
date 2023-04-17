@@ -69,9 +69,7 @@ workflows:
   build-and-deploy:
     jobs:
       - test-gotestsum
-      - test-golangci-lint:
-          requires:
-            - test-gotestsum
+      - test-golangci-lint
       - build:
           requires:
             - test-gotestsum
